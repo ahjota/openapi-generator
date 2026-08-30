@@ -38,6 +38,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
 import java.text.SimpleDateFormat;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -846,28 +851,49 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         setParameterExampleValue(codegenParameter);
     }
 
+    /**
+     * Convert a `date` schema default value into an R expression constructing a Date
+     * (the generated field must satisfy `inherits(x, "Date")`).
+     *
+     * Handles the value shapes swagger-parser may provide: parsed temporal types
+     * (e.g. {@link java.time.LocalDate}, {@link java.time.OffsetDateTime}), legacy
+     * {@link java.util.Date} objects, and RFC-3339 full-date strings. Temporal values
+     * are normalized to UTC so no offset suffix (e.g. "+05:00") leaks into the emitted
+     * expression, which R's as.Date() cannot parse.
+     *
+     * @param dateValue the raw default value from the schema
+     * @return an R expression, e.g. as.Date("2019-07-19"); or null when the value is
+     *         null or cannot be parsed as a date (no default is emitted)
+     */
     public String rDate(Object dateValue) {
-        private DateTimeFormatter iso8601Date = DateTimeFormatter.ISO_DATE;
         if (dateValue == null) {
-            return "NA";
+            // returning null suppresses the default in the generated initialize() signature
+            return null;
         }
 
         String strValue = null;
 
-        if (dateValue instance of TemporalAccessor) {
-            strValue = ISO_DATE.format((TemporalAccessor) dateValue);
+        if (dateValue instanceof OffsetDateTime) {
+            // shift to UTC first so the formatted date carries no offset suffix
+            strValue = DateTimeFormatter.ISO_LOCAL_DATE.format(((OffsetDateTime) dateValue).atZoneSameInstant(ZoneOffset.UTC));
+        } else if (dateValue instanceof TemporalAccessor) {
+            // e.g. a LocalDate parsed from a `date` schema value
+            strValue = DateTimeFormatter.ISO_LOCAL_DATE.format((TemporalAccessor) dateValue);
         } else if (dateValue instanceof Date) {
-            strValue = ISO_DATE.format(((Date dateValue)).toInstant().atOffset(ZoneOffset.UTC));
+            // legacy java.util.Date values from swagger-parser
+            strValue = DateTimeFormatter.ISO_LOCAL_DATE.format(((Date) dateValue).toInstant().atOffset(ZoneOffset.UTC));
         } else {
             // handle RFC3339 date strings, ignore everything else
             try {
-                strValue = ISO_DATE.format(ISO_DATE.parse(dateValue.toString()));
+                strValue = DateTimeFormatter.ISO_LOCAL_DATE.format(DateTimeFormatter.ISO_DATE.parse(dateValue.toString()));
             } catch (DateTimeParseException e) {
                 LOGGER.warn("Invalid `date` format for value {}", dateValue);
+                // no default is emitted rather than an as.Date(...) expression wrapping an invalid value
+                return null;
             }
         }
 
-        return "as.Date('" + strValue + "')";
+        return "as.Date(\"" + strValue + "\")";
     }
 
     /**
@@ -965,23 +991,6 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
             return value.substring(0, value.length() - 1);
         }
         return value;
-    }
-
-    /**
-     * Normalize a `date` schema default value into an ISO-8601 full-date (yyyy-MM-dd) string.
-     * swagger-parser may provide the default as a {@link java.util.Date} (parsed from the YAML value),
-     * whose toString() is not parseable by R's as.Date().
-     *
-     * @param def the raw default value from the schema
-     * @return an ISO-8601 full-date string, e.g. "2019-07-19"
-     */
-    private String isoDateDefault(Object def) {
-        if (def instanceof Date) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-            return sdf.format((Date) def);
-        }
-        return String.valueOf(def);
     }
 
     /**
