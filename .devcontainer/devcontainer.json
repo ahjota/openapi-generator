@@ -10,6 +10,12 @@
       "version": "lts"
     },
     "ghcr.io/devcontainers/features/rust:1": {},
+    "ghcr.io/rocker-org/devcontainer-features/r-rig:1": {
+      "version": "latest"
+    },
+    "ghcr.io/rocker-org/devcontainer-features/renv:1": {
+      "version": "latest"
+    },
     "ghcr.io/snebjorn/devcontainer-feature/chromium:latest": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
@@ -46,12 +52,9 @@
       ]
     }
   },
-  // Use 'forwardPorts' to make a list of ports inside the container available locally.
-  // "forwardPorts": [],
   // Use 'postCreateCommand' to run commands after the container is created.
-  // "postCreateCommand": "mvn clean package -DskipTests",
   // Install personal dotfiles (github.com/ahjota/dotfiles) via chezmoi.
-  "postCreateCommand": "sh .devcontainer/install-dotfiles.sh",
+  "postCreateCommand": "sh .devcontainer/install-dotfiles.sh && Rscript -e 'renv::init()'",
   // Apply Zed Factory Droid fix on each container start (see fix-zed-droid.sh).
   // Workaround for https://github.com/zed-industries/zed/issues/62716
   "postStartCommand": "sh .devcontainer/fix-zed-droid.sh",
