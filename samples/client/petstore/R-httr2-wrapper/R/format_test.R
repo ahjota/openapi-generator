@@ -351,12 +351,16 @@ FormatTest <- R6::R6Class(
       self$`string` <- this_object$`string`
       self$`byte` <- this_object$`byte`
       self$`binary` <- this_object$`binary`
-      # convert the JSON date string into an R Date object
-      self$`date` <- as.Date(this_object$`date`)
-      # convert the JSON date-time string into an R POSIXct object
-      # NOTE: the tryFormats/tz construction is only needed for R < 4.3 compatibility; from R 4.3,
-      # ISO 8601 ('T' separator, 'Z', offsets) parses natively and this can be simplified to as.POSIXct(x, tz = "UTC")
-      self$`dateTime` <- as.POSIXct(this_object$`dateTime`, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+      if (!is.null(this_object$`date`)) {
+        # convert the JSON date string into an R Date object
+        self$`date` <- as.Date(this_object$`date`)
+      }
+      if (!is.null(this_object$`dateTime`)) {
+        # convert the JSON date-time string into an R POSIXct object
+        # NOTE: the tryFormats/tz construction is only needed for R < 4.3 compatibility; from R 4.3,
+        # ISO 8601 ('T' separator, 'Z', offsets) parses natively and this can be simplified to as.POSIXct(x, tz = "UTC")
+        self$`dateTime` <- as.POSIXct(this_object$`dateTime`, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+      }
       self$`uuid` <- this_object$`uuid`
       self$`password` <- this_object$`password`
       self$`pattern_with_digits` <- this_object$`pattern_with_digits`

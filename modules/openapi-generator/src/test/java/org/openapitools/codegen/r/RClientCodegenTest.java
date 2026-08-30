@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.regex.Pattern;
 
 public class RClientCodegenTest {
@@ -117,6 +118,54 @@ public class RClientCodegenTest {
                 "fromJSON should convert the date property with as.Date");
         Assert.assertTrue(content.contains("as.POSIXct(this_object$`dateTime`"),
                 "fromJSON should convert the dateTime property with as.POSIXct");
+    }
+
+    @Test
+    public void testNullableDateAndDateTimeFields() throws IOException {
+        File output = Files.createTempDirectory("test").toFile().getCanonicalFile();
+        output.deleteOnExit();
+        final DefaultGenerator defaultGenerator = new DefaultGenerator();
+
+        RClientCodegen rClientCodegen = new RClientCodegen();
+        rClientCodegen.setOutputDir(output.getAbsolutePath());
+
+        // the spec has optional date/date-time fields plus a `nullable: true` `end` field
+        final OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/r/rproblems.yaml");
+        final ClientOptInput clientOptInput = new ClientOptInput();
+        clientOptInput.openAPI(openAPI);
+        clientOptInput.config(rClientCodegen);
+        defaultGenerator.opts(clientOptInput);
+
+        // nullable temporal fields must stay optional: constructor defaults are NULL and
+        // validation is guarded, so omitting the field (or passing NULL) never trips
+        // the inherits(x, "Date"/"POSIXt") check.
+        // NOTE: generate() must be called exactly once; processOpts() is not idempotent
+        // (re-running it NPEs on the errorObjectType key it stores with a null value).
+        List<File> generatedFiles = defaultGenerator.generate();
+
+        var dateObject = generatedFiles.stream()
+                .filter(file -> "date_object.R".equals(file.getName())).findFirst();
+        if (dateObject.isEmpty()) {
+            Assert.fail("`date_object.R` has not been generated");
+        }
+        String content = String.join("\n", Files.readAllLines(Paths.get(dateObject.get().getAbsolutePath())));
+        Assert.assertTrue(content.contains("initialize = function(`start` = NULL, `end` = NULL"),
+                "nullable date fields should default to NULL in the constructor signature");
+        Assert.assertTrue(content.contains("if (!is.null(`end`)) {"),
+                "date field validation should be guarded so NULL is accepted");
+        // a JSON null must keep the field NULL (not coerce it to a zero-length Date),
+        // in both fromJSON and fromJSONString
+        Assert.assertEquals(content.split(Pattern.quote("if (!is.null(this_object$`end`)) {"), -1).length - 1, 2,
+                "fromJSON and fromJSONString must both guard the nullable date conversion");
+
+        var dateTimeObject = generatedFiles.stream()
+                .filter(file -> "date_time_object.R".equals(file.getName())).findFirst();
+        if (dateTimeObject.isEmpty()) {
+            Assert.fail("`date_time_object.R` has not been generated");
+        }
+        String dateTimeContent = String.join("\n", Files.readAllLines(Paths.get(dateTimeObject.get().getAbsolutePath())));
+        Assert.assertEquals(dateTimeContent.split(Pattern.quote("if (!is.null(this_object$`end`)) {"), -1).length - 1, 2,
+                "fromJSON and fromJSONString must both guard the nullable date-time conversion");
     }
 
     @Test

@@ -191,10 +191,12 @@ Order <- R6::R6Class(
       self$`id` <- this_object$`id`
       self$`petId` <- this_object$`petId`
       self$`quantity` <- this_object$`quantity`
-      # convert the JSON date-time string into an R POSIXct object
-      # NOTE: the tryFormats/tz construction is only needed for R < 4.3 compatibility; from R 4.3,
-      # ISO 8601 ('T' separator, 'Z', offsets) parses natively and this can be simplified to as.POSIXct(x, tz = "UTC")
-      self$`shipDate` <- as.POSIXct(this_object$`shipDate`, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+      if (!is.null(this_object$`shipDate`)) {
+        # convert the JSON date-time string into an R POSIXct object
+        # NOTE: the tryFormats/tz construction is only needed for R < 4.3 compatibility; from R 4.3,
+        # ISO 8601 ('T' separator, 'Z', offsets) parses natively and this can be simplified to as.POSIXct(x, tz = "UTC")
+        self$`shipDate` <- as.POSIXct(this_object$`shipDate`, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+      }
       if (!is.null(this_object$`status`) && !(this_object$`status` %in% c("placed", "approved", "delivered"))) {
         stop(paste("Error! \"", this_object$`status`, "\" cannot be assigned to `status`. Must be \"placed\", \"approved\", \"delivered\".", sep = ""))
       }

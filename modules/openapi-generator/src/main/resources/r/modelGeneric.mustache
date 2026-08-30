@@ -415,14 +415,18 @@
       }
       {{/isUri}}
       {{#isDate}}
-      # convert the JSON date string into an R Date object
-      self$`{{name}}` <- as.Date(this_object$`{{name}}`)
+      if (!is.null(this_object$`{{name}}`)) {
+        # convert the JSON date string into an R Date object
+        self$`{{name}}` <- as.Date(this_object$`{{name}}`)
+      }
       {{/isDate}}
       {{#isDateTime}}
-      # convert the JSON date-time string into an R POSIXct object
-      # NOTE: the tryFormats/tz construction is only needed for R < 4.3 compatibility; from R 4.3,
-      # ISO 8601 ('T' separator, 'Z', offsets) parses natively and this can be simplified to as.POSIXct(x, tz = "UTC")
-      self$`{{name}}` <- as.POSIXct(this_object$`{{name}}`, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+      if (!is.null(this_object$`{{name}}`)) {
+        # convert the JSON date-time string into an R POSIXct object
+        # NOTE: the tryFormats/tz construction is only needed for R < 4.3 compatibility; from R 4.3,
+        # ISO 8601 ('T' separator, 'Z', offsets) parses natively and this can be simplified to as.POSIXct(x, tz = "UTC")
+        self$`{{name}}` <- as.POSIXct(this_object$`{{name}}`, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+      }
       {{/isDateTime}}
       {{^isDate}}
       {{^isDateTime}}
