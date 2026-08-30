@@ -47,6 +47,9 @@
   // "forwardPorts": [],
   // Use 'postCreateCommand' to run commands after the container is created.
   // "postCreateCommand": "mvn clean package -DskipTests",
+  // Apply Zed Factory Droid fix on each container start (see fix-zed-droid.sh).
+  // Workaround for https://github.com/zed-industries/zed/issues/62716
+  "postStartCommand": "sh .devcontainer/fix-zed-droid.sh",
   // Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
   "remoteUser": "vscode"
 }
