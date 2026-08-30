@@ -162,6 +162,9 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         languageSpecificPrimitives.add("integer");
         languageSpecificPrimitives.add("numeric");
         languageSpecificPrimitives.add("character");
+        // temporal primitives (from `date` and `date-time` schemas)
+        languageSpecificPrimitives.add("Date");
+        languageSpecificPrimitives.add("POSIXct");
         languageSpecificPrimitives.add("data.frame");
         languageSpecificPrimitives.add("object");
 
@@ -176,8 +179,10 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         typeMapping.put("string", "character");
         typeMapping.put("UUID", "character");
         typeMapping.put("URI", "character");
-        typeMapping.put("date", "character");
-        typeMapping.put("DateTime", "character");
+        // real R temporal classes: `date` -> Date, `date-time` -> POSIXct
+        // (POSIXct is the concrete POSIXt subclass; validation accepts any POSIXt)
+        typeMapping.put("date", "Date");
+        typeMapping.put("DateTime", "POSIXct");
         typeMapping.put("password", "character");
         typeMapping.put("file", "data.frame");
         typeMapping.put("binary", "data.frame");
@@ -783,6 +788,18 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
             if (example == null) {
                 example = "3.4";
             }
+        } else if ("Date".equals(type)) {
+            // `date` schema: parameters must be R Date objects
+            if (example == null) {
+                example = "2020-01-01";
+            }
+            example = "as.Date(\"" + escapeText(example) + "\")";
+        } else if ("POSIXct".equals(type)) {
+            // `date-time` schema: parameters must be R POSIXct objects
+            if (example == null) {
+                example = "2020-01-01T12:00:00Z";
+            }
+            example = "as.POSIXct(\"" + escapeText(stripTrailingZ(example)) + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
         } else if ("data.frame".equals(type)) {
             if (example == null) {
                 example = "/path/to/file";
@@ -850,11 +867,18 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
             }
         } else if (ModelUtils.isDateSchema(p)) {
             if (p.getDefault() != null) {
-                return "\"" + ((String.valueOf(p.getDefault()))).replaceAll("\"", "\\\"") + "\"";
+                // emit an R expression constructing a Date (the field must satisfy `inherits(x, "Date")`)
+                return "as.Date(\"" + ((String.valueOf(p.getDefault()))).replaceAll("\"", "\\\"") + "\")";
             }
         } else if (ModelUtils.isDateTimeSchema(p)) {
             if (p.getDefault() != null) {
-                return "\"" + ((String.valueOf(p.getDefault()))).replaceAll("\"", "\\\"") + "\"";
+                String value = String.valueOf(p.getDefault()).replaceAll("\"", "\\\"");
+                // emit an R expression constructing a POSIXct from an ISO-8601 default.
+                // strip the trailing 'Z' (expressed via tz = "UTC") so the format matches on older R versions
+                if (value.endsWith("Z")) {
+                    value = value.substring(0, value.length() - 1);
+                }
+                return "as.POSIXct(\"" + value + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
             }
         } else if (ModelUtils.isNumberSchema(p)) {
             if (p.getDefault() != null) {
@@ -911,6 +935,21 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
             }
         }
         return objs;
+    }
+
+    /**
+     * Strip a trailing 'Z' (UTC designator) from an ISO-8601 date-time string so it can be
+     * parsed with `format = "%Y-%m-%dT%H:%M:%OS"` and `tz = "UTC"` in generated R code
+     * (strptime's %z does not match a literal 'Z' on all R versions).
+     *
+     * @param value ISO-8601 date-time string, e.g. "2020-01-01T12:00:00Z"
+     * @return the string without its trailing 'Z', e.g. "2020-01-01T12:00:00"
+     */
+    private String stripTrailingZ(String value) {
+        if (value != null && value.endsWith("Z")) {
+            return value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 
     /**
@@ -973,6 +1012,18 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
                         return "\"" + codegenProperty.name + "_example\"";
                     }
                 }
+            } else if ("Date".equals(codegenProperty.dataType)) {
+                // `date` schema: emit a runnable as.Date(...) example
+                if (StringUtils.isEmpty(codegenProperty.example)) {
+                    return "as.Date(\"2020-01-01\")";
+                }
+                return "as.Date(\"" + escapeText(codegenProperty.example) + "\")";
+            } else if ("POSIXct".equals(codegenProperty.dataType)) {
+                // `date-time` schema: emit a runnable as.POSIXct(...) example
+                if (StringUtils.isEmpty(codegenProperty.example)) {
+                    return "as.POSIXct(\"2020-01-01T12:00:00\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
+                }
+                return "as.POSIXct(\"" + escapeText(stripTrailingZ(codegenProperty.example)) + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
             } else { // numeric
                 if (StringUtils.isEmpty(codegenProperty.example)) {
                     return codegenProperty.example;

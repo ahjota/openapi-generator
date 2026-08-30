@@ -18,6 +18,7 @@
 package org.openapitools.codegen.r;
 
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.media.StringSchema;
 import org.openapitools.codegen.ClientOptInput;
 import org.openapitools.codegen.CodegenConstants;
 import org.openapitools.codegen.DefaultGenerator;
@@ -61,6 +62,62 @@ public class RClientCodegenTest {
 
         Assert.assertEquals(codegen.additionalProperties().get(CodegenConstants.HIDE_GENERATION_TIMESTAMP), Boolean.FALSE);
         Assert.assertEquals(codegen.isHideGenerationTimestamp(), false);
+    }
+
+    @Test
+    public void testTypeMappingDateAndDateTime() throws Exception {
+        final RClientCodegen codegen = new RClientCodegen();
+        codegen.processOpts();
+
+        // `date` maps to the R Date class, `date-time` to POSIXct (the concrete POSIXt subclass)
+        Assert.assertEquals(codegen.getTypeDeclaration(new StringSchema().format("date")), "Date");
+        Assert.assertEquals(codegen.getTypeDeclaration(new StringSchema().format("date-time")), "POSIXct");
+        // both are treated as language-specific primitives (no import, primitive template branches)
+        Assert.assertTrue(codegen.languageSpecificPrimitives().contains("Date"));
+        Assert.assertTrue(codegen.languageSpecificPrimitives().contains("POSIXct"));
+    }
+
+    @Test
+    public void testDateAndDateTimeModelGeneration() throws IOException {
+        File output = Files.createTempDirectory("test").toFile().getCanonicalFile();
+        output.deleteOnExit();
+        final DefaultGenerator defaultGenerator = new DefaultGenerator();
+
+        RClientCodegen rClientCodegen = new RClientCodegen();
+        rClientCodegen.setOutputDir(output.getAbsolutePath());
+
+        // the test spec's `FormatTest` model carries `date` (default 2019-07-19) and
+        // `dateTime` (default 2015-10-28T14:38:02Z) properties
+        final OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/r/petstore.yaml");
+        final ClientOptInput clientOptInput = new ClientOptInput();
+        clientOptInput.openAPI(openAPI);
+        clientOptInput.config(rClientCodegen);
+        defaultGenerator.opts(clientOptInput);
+
+        var formatTestModel = defaultGenerator.generate().stream()
+                .filter(file -> "format_test.R".equals(file.getName())).findFirst();
+        if (formatTestModel.isEmpty()) {
+            Assert.fail("`format_test.R` has not been generated");
+        }
+        String content = String.join("\n", Files.readAllLines(Paths.get(formatTestModel.get().getAbsolutePath())));
+
+        // defaults construct real R temporal objects
+        Assert.assertTrue(content.contains("as.Date(\"2019-07-19\")"),
+                "date property default should be emitted as as.Date(...)");
+        Assert.assertTrue(content.contains("as.POSIXct(\"2015-10-28T14:38:02\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")"),
+                "dateTime property default should be emitted as as.POSIXct(..., tz = \"UTC\")");
+
+        // initialize() validation accepts the real classes (POSIXt covers POSIXct and POSIXlt)
+        Assert.assertTrue(content.contains("inherits(`date`, \"Date\")"),
+                "date property validation should check inherits(x, \"Date\")");
+        Assert.assertTrue(content.contains("inherits(`dateTime`, \"POSIXt\")"),
+                "dateTime property validation should check inherits(x, \"POSIXt\")");
+
+        // fromJSON converts parsed JSON date strings into Date/POSIXct
+        Assert.assertTrue(content.contains("as.Date(this_object$`date`)"),
+                "fromJSON should convert the date property with as.Date");
+        Assert.assertTrue(content.contains("as.POSIXct(this_object$`dateTime`"),
+                "fromJSON should convert the dateTime property with as.POSIXct");
     }
 
     @Test
