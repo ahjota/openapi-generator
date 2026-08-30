@@ -851,7 +851,7 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         if (dateValue == null) {
             return "NA";
         }
-        
+
         String strValue = null;
 
         if (dateValue instance of TemporalAccessor) {
@@ -887,8 +887,7 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
             }
         } else if (ModelUtils.isDateSchema(p)) {
             if (p.getDefault() != null) {
-                // emit an R expression constructing a Date (the field must satisfy `inherits(x, "Date")`)
-                return "as.Date(\"" + isoDateDefault(p.getDefault()).replaceAll("\"", "\\\"") + "\")";
+                return rDate(p.getDefault());
             }
         } else if (ModelUtils.isDateTimeSchema(p)) {
             if (p.getDefault() != null) {
