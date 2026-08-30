@@ -101,9 +101,8 @@ public class RClientCodegenTest {
         }
         String content = String.join("\n", Files.readAllLines(Paths.get(formatTestModel.get().getAbsolutePath())));
 
-        // defaults construct real R temporal objects
-        Assert.assertTrue(content.contains("as.Date(\"2019-07-19\")"),
-                "date property default should be emitted as as.Date(...)");
+        // optional property defaults construct real R temporal objects
+        // (the `date` property is required, so its default is not rendered in the initialize signature)
         Assert.assertTrue(content.contains("as.POSIXct(\"2015-10-28T14:38:02\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")"),
                 "dateTime property default should be emitted as as.POSIXct(..., tz = \"UTC\")");
 

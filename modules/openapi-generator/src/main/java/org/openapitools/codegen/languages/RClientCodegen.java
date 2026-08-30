@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -845,6 +846,30 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         setParameterExampleValue(codegenParameter);
     }
 
+    public String rDate(Object dateValue) {
+        private DateTimeFormatter iso8601Date = DateTimeFormatter.ISO_DATE;
+        if (dateValue == null) {
+            return "NA";
+        }
+        
+        String strValue = null;
+
+        if (dateValue instance of TemporalAccessor) {
+            strValue = ISO_DATE.format((TemporalAccessor) dateValue);
+        } else if (dateValue instanceof Date) {
+            strValue = ISO_DATE.format(((Date dateValue)).toInstant().atOffset(ZoneOffset.UTC));
+        } else {
+            // handle RFC3339 date strings, ignore everything else
+            try {
+                strValue = ISO_DATE.format(ISO_DATE.parse(dateValue.toString()));
+            } catch (DateTimeParseException e) {
+                LOGGER.warn("Invalid `date` format for value {}", dateValue);
+            }
+        }
+
+        return "as.Date('" + strValue + "')";
+    }
+
     /**
      * Return the default value of the property
      *
@@ -863,17 +888,13 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         } else if (ModelUtils.isDateSchema(p)) {
             if (p.getDefault() != null) {
                 // emit an R expression constructing a Date (the field must satisfy `inherits(x, "Date")`)
-                return "as.Date(\"" + ((String.valueOf(p.getDefault()))).replaceAll("\"", "\\\"") + "\")";
+                return "as.Date(\"" + isoDateDefault(p.getDefault()).replaceAll("\"", "\\\"") + "\")";
             }
         } else if (ModelUtils.isDateTimeSchema(p)) {
             if (p.getDefault() != null) {
-                String value = String.valueOf(p.getDefault()).replaceAll("\"", "\\\"");
-                // emit an R expression constructing a POSIXct from an ISO-8601 default.
-                // strip the trailing 'Z' (expressed via tz = "UTC") so the format matches on older R versions
-                if (value.endsWith("Z")) {
-                    value = value.substring(0, value.length() - 1);
-                }
-                return "as.POSIXct(\"" + value + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
+                // emit an R expression constructing a POSIXct from an ISO-8601 default
+                // (trailing 'Z' is stripped and expressed via tz = "UTC" so the format matches on all R versions)
+                return "as.POSIXct(\"" + isoDateTimeDefault(p.getDefault()).replaceAll("\"", "\\\"") + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
             }
         } else if (ModelUtils.isNumberSchema(p)) {
             if (p.getDefault() != null) {
@@ -948,6 +969,40 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
     }
 
     /**
+     * Normalize a `date` schema default value into an ISO-8601 full-date (yyyy-MM-dd) string.
+     * swagger-parser may provide the default as a {@link java.util.Date} (parsed from the YAML value),
+     * whose toString() is not parseable by R's as.Date().
+     *
+     * @param def the raw default value from the schema
+     * @return an ISO-8601 full-date string, e.g. "2019-07-19"
+     */
+    private String isoDateDefault(Object def) {
+        if (def instanceof Date) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+            return sdf.format((Date) def);
+        }
+        return String.valueOf(def);
+    }
+
+    /**
+     * Normalize a `date-time` schema default value into an ISO-8601 date-time string without a
+     * trailing 'Z' or offset (the UTC designator is expressed via `tz = "UTC"` in the emitted
+     * R expression). swagger-parser may provide the default as a {@link java.util.Date}.
+     *
+     * @param def the raw default value from the schema
+     * @return an ISO-8601 local date-time string, e.g. "2015-10-28T14:38:02"
+     */
+    private String isoDateTimeDefault(Object def) {
+        if (def instanceof Date) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+            return sdf.format((Date) def);
+        }
+        return stripTrailingZ(String.valueOf(def));
+    }
+
+    /**
      * Return the R doc type (e.g. list(\link{Media}), character)
      *
      * @param codegenProperty Codegen property
@@ -1008,14 +1063,15 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
                     }
                 }
             } else if ("Date".equals(codegenProperty.dataType)) {
-                // `date` schema: emit a runnable as.Date(...) example
-                if (StringUtils.isEmpty(codegenProperty.example)) {
+                // `date` schema: emit a runnable as.Date(...) example.
+                // toExampleValue() yields the literal string "null" when the spec has no example; treat it as missing
+                if (StringUtils.isEmpty(codegenProperty.example) || "null".equals(codegenProperty.example)) {
                     return "as.Date(\"2020-01-01\")";
                 }
                 return "as.Date(\"" + escapeText(codegenProperty.example) + "\")";
             } else if ("POSIXct".equals(codegenProperty.dataType)) {
                 // `date-time` schema: emit a runnable as.POSIXct(...) example
-                if (StringUtils.isEmpty(codegenProperty.example)) {
+                if (StringUtils.isEmpty(codegenProperty.example) || "null".equals(codegenProperty.example)) {
                     return "as.POSIXct(\"2020-01-01T12:00:00\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
                 }
                 return "as.POSIXct(\"" + escapeText(stripTrailingZ(codegenProperty.example)) + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";

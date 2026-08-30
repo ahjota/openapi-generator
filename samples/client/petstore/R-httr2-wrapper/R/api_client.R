@@ -350,7 +350,8 @@ ApiClient  <- R6::R6Class(
     #' @export
     deserializeObj = function(obj, return_type, pkg_env) {
       return_obj <- NULL
-      primitive_types <- c("character", "numeric", "integer", "logical", "complex")
+      # "Date" and "POSIXct" hold `date` and `date-time` schema values (real R temporal classes)
+      primitive_types <- c("character", "numeric", "integer", "logical", "complex", "Date", "POSIXct")
 
       # for deserialization, uniqueness requirements do not matter
       return_type <- gsub(pattern = "^(set|array)\\[",
@@ -413,7 +414,15 @@ ApiClient  <- R6::R6Class(
         )
       } else {
         # To handle primitive type
-        return_obj <- obj
+        if (identical(return_type, "Date")) {
+          # convert JSON date strings into R Date objects
+          return_obj <- if (is.null(obj)) NULL else as.Date(obj)
+        } else if (identical(return_type, "POSIXct")) {
+          # convert JSON date-time strings into R POSIXct objects
+          return_obj <- if (is.null(obj)) NULL else as.POSIXct(obj, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
+        } else {
+          return_obj <- obj
+        }
       }
       return_obj
     },
