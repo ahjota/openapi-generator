@@ -419,6 +419,8 @@ ApiClient  <- R6::R6Class(
           return_obj <- if (is.null(obj)) NULL else as.Date(obj)
         } else if (identical(return_type, "POSIXct")) {
           # convert JSON date-time strings into R POSIXct objects
+          # NOTE: the tryFormats/tz construction is only needed for R < 4.3 compatibility; from R 4.3,
+          # ISO 8601 ('T' separator, 'Z', offsets) parses natively and this can be simplified to as.POSIXct(obj, tz = "UTC")
           return_obj <- if (is.null(obj)) NULL else as.POSIXct(obj, tryFormats = c("%Y-%m-%dT%H:%M:%OSZ", "%Y-%m-%dT%H:%M:%OS", "%Y-%m-%d %H:%M:%S"), tz = "UTC")
         } else {
           return_obj <- obj
