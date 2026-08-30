@@ -50,6 +50,8 @@
   // "forwardPorts": [],
   // Use 'postCreateCommand' to run commands after the container is created.
   // "postCreateCommand": "mvn clean package -DskipTests",
+  // Install personal dotfiles (github.com/ahjota/dotfiles) via chezmoi.
+  "postCreateCommand": "sh .devcontainer/install-dotfiles.sh",
   // Apply Zed Factory Droid fix on each container start (see fix-zed-droid.sh).
   // Workaround for https://github.com/zed-industries/zed/issues/62716
   "postStartCommand": "sh .devcontainer/fix-zed-droid.sh",
