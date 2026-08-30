@@ -896,6 +896,10 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         return "as.Date(\"" + strValue + "\")";
     }
 
+    public String rDateTime(Object dateValue) {
+        return "";
+    }
+
     /**
      * Return the default value of the property
      *
@@ -917,9 +921,7 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
             }
         } else if (ModelUtils.isDateTimeSchema(p)) {
             if (p.getDefault() != null) {
-                // emit an R expression constructing a POSIXct from an ISO-8601 default
-                // (trailing 'Z' is stripped and expressed via tz = "UTC" so the format matches on all R versions)
-                return "as.POSIXct(\"" + isoDateTimeDefault(p.getDefault()).replaceAll("\"", "\\\"") + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
+                return rDateTime(p.getDefault());
             }
         } else if (ModelUtils.isNumberSchema(p)) {
             if (p.getDefault() != null) {
