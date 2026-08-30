@@ -13,8 +13,9 @@
     "ghcr.io/rocker-org/devcontainer-features/r-rig:1": {
       "version": "latest"
     },
-    "ghcr.io/rocker-org/devcontainer-features/renv:1": {
-      "version": "latest"
+    "ghcr.io/rocker-org/devcontainer-features/r-packages:1": {
+      "packages": "devtools,testthat,jsonlite,httr2,R6,base64enc,stringr",
+      "installSystemRequirements": true
     },
     "ghcr.io/snebjorn/devcontainer-feature/chromium:latest": {},
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
@@ -54,7 +55,7 @@
   },
   // Use 'postCreateCommand' to run commands after the container is created.
   // Install personal dotfiles (github.com/ahjota/dotfiles) via chezmoi.
-  "postCreateCommand": "sh .devcontainer/install-dotfiles.sh && Rscript -e 'renv::init()'",
+  "postCreateCommand": "sh .devcontainer/install-dotfiles.sh",
   // Apply Zed Factory Droid fix on each container start (see fix-zed-droid.sh).
   // Workaround for https://github.com/zed-industries/zed/issues/62716
   "postStartCommand": "sh .devcontainer/fix-zed-droid.sh",
