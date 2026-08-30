@@ -16,13 +16,9 @@
       "moby": false
     }
   },
-  // Mount Factory Droid auth credentials from the host so the agent can
-  // authenticate inside the container (no browser available for OAuth).
-  "mounts": [
-    "source=${localEnv:HOME}/.factory/auth.v2.file,target=/home/vscode/.factory/auth.v2.file,type=bind,ro",
-    "source=${localEnv:HOME}/.factory/auth.v2.key,target=/home/vscode/.factory/auth.v2.key,type=bind,ro",
-    "source=${localEnv:HOME}/.factory/auth.v2.keyring,target=/home/vscode/.factory/auth.v2.keyring,type=bind,ro"
-  ],
+  // Inject Factory API key from host (no browser in container for OAuth).
+  // Key file is at ~/.config/factory/api-key.env on the host (not in repo).
+  "runArgs": ["--env-file", "${localEnv:HOME}/.config/factory/api-key.env"],
   // Configure tool-specific properties.
   "customizations": {
     // Configure properties specific to VS Code.
