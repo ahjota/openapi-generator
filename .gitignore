@@ -315,3 +315,6 @@ samples/client/jetbrains/adyen/checkout71/http/client/Apis/http-client.private.e
 
 # AI agent caches
 .junie
+
+# tmp
+tmp/
