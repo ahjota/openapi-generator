@@ -162,7 +162,6 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         languageSpecificPrimitives.add("integer");
         languageSpecificPrimitives.add("numeric");
         languageSpecificPrimitives.add("character");
-        // temporal primitives (from `date` and `date-time` schemas)
         languageSpecificPrimitives.add("Date");
         languageSpecificPrimitives.add("POSIXct");
         languageSpecificPrimitives.add("data.frame");
@@ -179,8 +178,6 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         typeMapping.put("string", "character");
         typeMapping.put("UUID", "character");
         typeMapping.put("URI", "character");
-        // real R temporal classes: `date` -> Date, `date-time` -> POSIXct
-        // (POSIXct is the concrete POSIXt subclass; validation accepts any POSIXt)
         typeMapping.put("date", "Date");
         typeMapping.put("DateTime", "POSIXct");
         typeMapping.put("password", "character");
@@ -789,13 +786,11 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
                 example = "3.4";
             }
         } else if ("Date".equals(type)) {
-            // `date` schema: parameters must be R Date objects
             if (example == null) {
                 example = "2020-01-01";
             }
             example = "as.Date(\"" + escapeText(example) + "\")";
         } else if ("POSIXct".equals(type)) {
-            // `date-time` schema: parameters must be R POSIXct objects
             if (example == null) {
                 example = "2020-01-01T12:00:00Z";
             }
