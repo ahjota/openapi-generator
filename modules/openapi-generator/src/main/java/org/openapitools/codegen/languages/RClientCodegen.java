@@ -37,7 +37,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -896,8 +897,73 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
         return "as.Date(\"" + strValue + "\")";
     }
 
+    /**
+     * Convert a `date-time` schema default value into an R expression constructing a POSIXct
+     * (the generated field must satisfy `inherits(x, "POSIXt")`).
+     *
+     * Handles the value shapes swagger-parser may provide: parsed temporal types
+     * (e.g. {@link java.time.OffsetDateTime}), legacy {@link java.util.Date} objects, and
+     * RFC-3339 date-time strings. Values are normalized to UTC and the 'Z' designator is
+     * expressed via `tz = "UTC"` in the emitted expression, since strptime cannot reliably
+     * parse a trailing 'Z' on all R versions.
+     *
+     * @param dateValue the raw default value from the schema
+     * @return an R expression, e.g. as.POSIXct("2015-10-28T14:38:02", format = "%Y-%m-%dT%H:%M:%OS", tz = "UTC");
+     *         or null when the value is null or cannot be parsed as a date-time (no default is emitted)
+     */
     public String rDateTime(Object dateValue) {
-        return "";
+        if (dateValue == null) {
+            // returning null suppresses the default in the generated initialize() signature
+            return null;
+        }
+
+        String strValue = null;
+
+        if (dateValue instanceof OffsetDateTime) {
+            // shift to UTC first so the formatted value carries a canonical 'Z' designator
+            strValue = isoInstantNoZ(((OffsetDateTime) dateValue).atZoneSameInstant(ZoneOffset.UTC));
+        } else if (dateValue instanceof TemporalAccessor) {
+            // e.g. a ZonedDateTime parsed from a `date-time` schema value; zone-less temporals
+            // (e.g. LocalDateTime) lack instant fields for ISO_INSTANT, so interpret them as UTC
+            if (dateValue instanceof LocalDateTime) {
+                strValue = isoInstantNoZ(((LocalDateTime) dateValue).toInstant(ZoneOffset.UTC));
+            } else {
+                strValue = isoInstantNoZ((TemporalAccessor) dateValue);
+            }
+        } else if (dateValue instanceof Date) {
+            // legacy java.util.Date values from swagger-parser
+            strValue = isoInstantNoZ(((Date) dateValue).toInstant());
+        } else {
+            // handle RFC3339 date-time strings, ignore everything else
+            String value = dateValue.toString();
+            try {
+                // zone-aware strings (trailing 'Z' or an offset); ISO_OFFSET_DATE_TIME parses
+                // both on all supported Java versions, unlike ISO_INSTANT (offsets only since JDK 12)
+                strValue = isoInstantNoZ(Instant.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(value)));
+            } catch (DateTimeParseException zoneAware) {
+                try {
+                    // tolerate zone-less date-time strings by interpreting them as UTC
+                    strValue = isoInstantNoZ(LocalDateTime.parse(value).toInstant(ZoneOffset.UTC));
+                } catch (DateTimeParseException e) {
+                    LOGGER.warn("Invalid `date-time` format for value {}", dateValue);
+                    // no default is emitted rather than an as.POSIXct(...) expression wrapping an invalid value
+                    return null;
+                }
+            }
+        }
+
+        return "as.POSIXct(\"" + strValue + "\", format = \"%Y-%m-%dT%H:%M:%OS\", tz = \"UTC\")";
+    }
+
+    /**
+     * Format a temporal value with ISO_INSTANT (always UTC) and strip the trailing 'Z' so the
+     * value can be parsed with `format = "%Y-%m-%dT%H:%M:%OS"` and `tz = "UTC"` in generated R code.
+     *
+     * @param temporal a temporal value carrying instant fields (e.g. Instant, OffsetDateTime, ZonedDateTime)
+     * @return an ISO-8601 UTC date-time string without the trailing 'Z', e.g. "2015-10-28T14:38:02"
+     */
+    private String isoInstantNoZ(TemporalAccessor temporal) {
+        return stripTrailingZ(DateTimeFormatter.ISO_INSTANT.format(temporal));
     }
 
     /**
@@ -993,23 +1059,6 @@ public class RClientCodegen extends DefaultCodegen implements CodegenConfig {
             return value.substring(0, value.length() - 1);
         }
         return value;
-    }
-
-    /**
-     * Normalize a `date-time` schema default value into an ISO-8601 date-time string without a
-     * trailing 'Z' or offset (the UTC designator is expressed via `tz = "UTC"` in the emitted
-     * R expression). swagger-parser may provide the default as a {@link java.util.Date}.
-     *
-     * @param def the raw default value from the schema
-     * @return an ISO-8601 local date-time string, e.g. "2015-10-28T14:38:02"
-     */
-    private String isoDateTimeDefault(Object def) {
-        if (def instanceof Date) {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
-            return sdf.format((Date) def);
-        }
-        return stripTrailingZ(String.valueOf(def));
     }
 
     /**
